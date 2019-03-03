@@ -18,14 +18,27 @@
 
 - 你理解的对于类似ucore这样需要进程/虚存/文件系统的操作系统，在硬件设计上至少需要有哪些直接的支持？至少应该提供哪些功能的特权指令？
 
+  在进程管理上，由于操作系统需要在cpu上进行进程的切换，因此在硬件上需要支持中断操作；虚存管理要求硬件进行地质映射，因此需要MMU、TLB等硬件；对于文件系统，由于文件是存储在硬盘上的，因此硬件需要提供这样的存储介质。对应需要的特权指令有软件中断相关的；设置地址转换方式，以及类似于写TLB、设置页表等指令；执行设备I/O等指令。
+
+  
+
 - 你理解的x86的实模式和保护模式有什么区别？物理地址、线性地址、逻辑地址的含义分别是什么？
 
+  实模式和保护模式的主要区别在于内存是否收到保护，实模式下，16位寻址空间；保护模式下，32位寻址空间，有很好的机制保证操作系统和各个进程的安全。
+
+  物理地址是指物理介质（例如内存）中直接对应的地址；线性地址是指通过了段模式映射之后的地址，是逻辑地址和物理地址中间层的地址；逻辑地址是指进程直接使用的地址。
+
+  
 - 你理解的risc-v的特权模式有什么区别？不同 模式在地址访问方面有何特征？
+
+  
+
+  
 
 - 理解ucore中list_entry双向链表数据结构及其4个基本操作函数和ucore中一些基于它的代码实现（此题不用填写内容）
 
 - 对于如下的代码段，请说明":"后面的数字是什么含义
-```
+```c
  /* Gate descriptors for interrupts and traps */
  struct gatedesc {
     unsigned gd_off_15_0 : 16;        // low 16 bits of offset in segment
@@ -40,9 +53,13 @@
  };
 ```
 
+​	“:” 后面的数字表示各个域在结构体中占的位数。
+
+
+
 - 对于如下的代码段，
 
-```
+```c
 #define SETGATE(gate, istrap, sel, off, dpl) {            \
     (gate).gd_off_15_0 = (uint32_t)(off) & 0xffff;        \
     (gate).gd_ss = (sel);                                \
@@ -56,12 +73,17 @@
 }
 ```
 如果在其他代码段中有如下语句，
-```
+
+```c
 unsigned intr;
 intr=8;
 SETGATE(intr, 1,2,3,0);
 ```
 请问执行上述指令后， intr的值是多少？
+
+unsigned 只有32位，即只关心 gd_off_15_0和gd_ss域即可，因此执行上述指令后，intr的值为0x00020003
+
+
 
 ### 课堂实践练习
 
@@ -69,11 +91,49 @@ SETGATE(intr, 1,2,3,0);
 
 1. 请在ucore中找一段你认为难度适当的AT&T格式X86汇编代码，尝试解释其含义。
 
+   ```assembly
+   .text
+   .globl switch_to
+   switch_to:                      # switch_to(from, to)
+   
+       # save from's registers
+       movl 4(%esp), %eax          # eax points to from
+       popl 0(%eax)                # save eip !popl
+       movl %esp, 4(%eax)
+       movl %ebx, 8(%eax)
+       movl %ecx, 12(%eax)
+       movl %edx, 16(%eax)
+       movl %esi, 20(%eax)
+       movl %edi, 24(%eax)
+       movl %ebp, 28(%eax)
+   
+       # restore to's registers
+       movl 4(%esp), %eax          # not 8(%esp): popped return address already
+                                   # eax now points to to
+       movl 28(%eax), %ebp
+       movl 24(%eax), %edi
+       movl 20(%eax), %esi
+       movl 16(%eax), %edx
+       movl 12(%eax), %ecx
+       movl 8(%eax), %ebx
+       movl 4(%eax), %esp
+   
+       pushl 0(%eax)               # push eip
+   
+       ret
+   ```
+
+   这是一段用来切换进程的汇编代码，这里首先将所有的几个寄存器保存在栈上一段连续的地址，再从指定的一块内存地址上恢复各个寄存器的值，这样就完成了进程间状态的切换。
+
 2. (option)请在rcore中找一段你认为难度适当的RV汇编代码，尝试解释其含义。
+
+   
 
 #### 练习二
 
 宏定义和引用在内核代码中很常用。请枚举ucore或rcore中宏定义的用途，并举例描述其含义。
+
+宏定义可以很好的减少代码重复，让一些常量的含义更加清晰。
 
 #### reference
  - [Intel格式和AT&T格式汇编区别](http://www.cnblogs.com/hdk1993/p/4820353.html)
